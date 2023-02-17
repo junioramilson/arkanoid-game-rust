@@ -2,13 +2,17 @@ use bevy::{prelude::*, sprite::{MaterialMesh2dBundle}};
 
 pub struct PlayerPlugin;
 
+const MOVEMENT_SPEED_BOOST: f32 = 2.;
+const MOVEMENT_SPEED: f32 = 1.5;
+const PLAYER_PADDLE_SIZE: Vec2 = Vec2 { x: 100., y: 20. };
+
 impl Plugin for PlayerPlugin {
     fn build(&self, app: &mut App) {
         app
             .add_startup_system(spawn_player)
             .add_system(process_player_input)
-            .add_system(process_player_movement)
-            .add_system(process_border_collision);
+            .add_system(update_player_movement)
+            .add_system(process_player_collision);
     }
 }
 
@@ -24,10 +28,6 @@ enum PlayerDirection {
     LEFT,
     RIGHT
 }
-
-const MOVEMENT_SPEED_BOOST: f32 = 2.;
-const MOVEMENT_SPEED: f32 = 1.5;
-const PLAYER_PADDLE_SIZE: Vec2 = Vec2 { x: 100., y: 20. };
 
 fn spawn_player(mut commands: Commands, mut meshes: ResMut<Assets<Mesh>>, mut materials: ResMut<Assets<ColorMaterial>>, windows: ResMut<Windows>) {
     let window = windows.get_primary().unwrap();
@@ -76,7 +76,7 @@ fn process_player_input(mut player_query: Query<&mut Player>, keyboard_input: Re
     }
 }
 
-fn process_player_movement(mut player_query: Query<(&Player, &mut Transform)>) {
+fn update_player_movement(mut player_query: Query<(&Player, &mut Transform)>) {
     let (player, mut transform) = player_query.single_mut();
     
     let final_speed = match player.boosting {
@@ -95,7 +95,7 @@ fn process_player_movement(mut player_query: Query<(&Player, &mut Transform)>) {
     }
 }
 
-fn process_border_collision(mut player_query: Query<(&mut Player, &Transform)>, windows: ResMut<Windows>) {
+fn process_player_collision(mut player_query: Query<(&mut Player, &Transform)>, windows: ResMut<Windows>) {
     let window = windows.get_primary().unwrap();
     let (mut player, transform) = player_query.single_mut();
 

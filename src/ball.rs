@@ -2,10 +2,16 @@ use bevy::{prelude::*, sprite::{MaterialMesh2dBundle}};
 
 pub struct BallPlugin;
 
+const BALL_RADIUS: f32 = 10.;
+const BALL_INIT_SPEED: f32 = 3.;
+const BALL_INC_SPEED_FACTOR: f32 = 0.2;
 
 impl Plugin for BallPlugin {
     fn build(&self, app: &mut App) {
-        app.add_startup_system(spawn_ball).add_system(move_ball).add_system(update_ball_direction);
+        app
+            .add_startup_system(spawn_ball)
+            .add_system(update_ball_movement)
+            .add_system(update_ball_direction);
     }
 }
 
@@ -14,10 +20,6 @@ pub struct Ball {
     speed: f32,
     direction: (i32, i32)
 }
-
-const BALL_RADIUS: f32 = 10.;
-const BALL_INIT_SPEED: f32 = 3.;
-const BALL_INC_SPEED_FACTOR: f32 = 0.2;
 
 fn spawn_ball(mut commands: Commands, mut meshes: ResMut<Assets<Mesh>>, mut materials: ResMut<Assets<ColorMaterial>>) {
     let ball_mesh = commands.spawn(MaterialMesh2dBundle {
@@ -54,7 +56,7 @@ fn update_ball_direction(mut ball_query: Query<(&mut Ball, &Transform)>, windows
     }
 }
 
-fn move_ball(mut ball_query: Query<(&Ball, &mut Transform)>) {
+fn update_ball_movement(mut ball_query: Query<(&Ball, &mut Transform)>) {
     let (ball, mut transform) = ball_query.single_mut();
 
     if ball.direction.0 == 1 {
