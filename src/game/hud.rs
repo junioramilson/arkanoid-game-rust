@@ -36,9 +36,8 @@ fn setup_hud(mut commands: Commands, asset_server: Res<AssetServer>) {
         TextBundle::from_sections([
             TextSection::new("Score: ", styled_text(45.)),
             TextSection::from_style(styled_text(45.)),
-        ]) // Set the alignment of the Text
+        ])
         .with_text_alignment(TextAlignment::TOP_CENTER)
-        // Set the style of the TextBundle itself.
         .with_style(Style {
             position_type: PositionType::Absolute,
             position: UiRect {

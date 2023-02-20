@@ -1,6 +1,12 @@
-use bevy::{prelude::*, sprite::{MaterialMesh2dBundle}};
+use bevy::{
+    prelude::*,
+    sprite::{
+        collide_aabb::{collide, Collision},
+        MaterialMesh2dBundle,
+    },
+};
 
-use super::GameState;
+use super::{Ball, GameState, BALL_RADIUS};
 
 pub struct PlayerPlugin;
 
@@ -10,13 +16,12 @@ const PLAYER_PADDLE_SIZE: Vec2 = Vec2 { x: 100., y: 20. };
 
 impl Plugin for PlayerPlugin {
     fn build(&self, app: &mut App) {
-        app
-        .add_startup_system(spawn_player)
-        .add_system_set(
+        app.add_startup_system(spawn_player).add_system_set(
             SystemSet::on_update(GameState::Playing)
                 .with_system(process_player_input)
                 .with_system(update_player_movement)
                 .with_system(process_player_collision)
+                .with_system(process_player_ball_collision),
         );
     }
 }
@@ -26,37 +31,46 @@ struct Player {
     direction: Option<PlayerDirection>,
     can_move_left: bool,
     can_move_right: bool,
-    boosting: bool
+    boosting: bool,
 }
 
 enum PlayerDirection {
     LEFT,
-    RIGHT
+    RIGHT,
 }
 
-fn spawn_player(mut commands: Commands, mut meshes: ResMut<Assets<Mesh>>, mut materials: ResMut<Assets<ColorMaterial>>, windows: ResMut<Windows>) {
+fn spawn_player(
+    mut commands: Commands,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<ColorMaterial>>,
+    windows: ResMut<Windows>,
+) {
     let window = windows.get_primary().unwrap();
 
     let spawn_position = Vec3 {
         x: 0.,
         y: -(window.height() / 2.0) + 100.,
-        z: 0.
+        z: 0.,
     };
 
-    let paddle_mesh = commands.spawn(MaterialMesh2dBundle {
-        mesh: meshes.add(shape::Quad::new(PLAYER_PADDLE_SIZE).into()).into(),
-        material: materials.add(ColorMaterial::from(Color::YELLOW)),
-        transform: Transform::from_translation(spawn_position),
-        ..default()
-    }).id();
+    let paddle_mesh = commands
+        .spawn(MaterialMesh2dBundle {
+            mesh: meshes
+                .add(shape::Quad::new(PLAYER_PADDLE_SIZE).into())
+                .into(),
+            material: materials.add(ColorMaterial::from(Color::YELLOW)),
+            transform: Transform::from_translation(spawn_position),
+            ..default()
+        })
+        .id();
 
     commands
-    .entity(paddle_mesh)
+        .entity(paddle_mesh)
         .insert(Player {
             direction: None,
             boosting: false,
             can_move_left: true,
-            can_move_right: true
+            can_move_right: true,
         })
         .insert(Name::new("PlayerPaddle"));
 }
@@ -83,24 +97,23 @@ fn process_player_input(mut player_query: Query<&mut Player>, keyboard_input: Re
 
 fn update_player_movement(mut player_query: Query<(&Player, &mut Transform)>) {
     let (player, mut transform) = player_query.single_mut();
-    
+
     let final_speed = match player.boosting {
         true => MOVEMENT_SPEED + MOVEMENT_SPEED_BOOST,
         false => MOVEMENT_SPEED,
     };
 
     match player.direction {
-        None => {},
-        Some(PlayerDirection::LEFT) => {
-            transform.translation.x -= final_speed
-        },
-        Some(PlayerDirection::RIGHT) => {
-            transform.translation.x += final_speed
-        },
+        None => {}
+        Some(PlayerDirection::LEFT) => transform.translation.x -= final_speed,
+        Some(PlayerDirection::RIGHT) => transform.translation.x += final_speed,
     }
 }
 
-fn process_player_collision(mut player_query: Query<(&mut Player, &Transform)>, windows: ResMut<Windows>) {
+fn process_player_collision(
+    mut player_query: Query<(&mut Player, &Transform)>,
+    windows: ResMut<Windows>,
+) {
     let window = windows.get_primary().unwrap();
     let (mut player, transform) = player_query.single_mut();
 
@@ -112,5 +125,41 @@ fn process_player_collision(mut player_query: Query<(&mut Player, &Transform)>, 
     } else if transform.translation.x - 10. <= -limit_x {
         player.direction = None;
         player.can_move_left = false;
+    }
+}
+
+fn process_player_ball_collision(
+    mut player_query: Query<(&mut Player, &Transform)>,
+    mut ball_query: Query<(&mut Ball, &Transform)>,
+) {
+    let (_player, player_transform) = player_query.single_mut();
+    let (mut ball, ball_transform) = ball_query.single_mut();
+
+    let collision = collide(
+        player_transform.translation,
+        PLAYER_PADDLE_SIZE,
+        ball_transform.translation,
+        Vec2 {
+            x: BALL_RADIUS * 2.,
+            y: BALL_RADIUS * 2.,
+        },
+    );
+
+    if collision.is_some() {
+        match collision.unwrap() {
+            Collision::Top => {
+                ball.direction.1 = -1;
+            }
+            Collision::Bottom => {
+                ball.direction.1 = 1;
+            }
+            Collision::Left => {
+                ball.direction.0 = 1;
+            }
+            Collision::Right => {
+                ball.direction.0 = -1;
+            }
+            _ => {}
+        }
     }
 }

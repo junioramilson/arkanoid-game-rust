@@ -4,7 +4,7 @@ use crate::game::GameState;
 
 pub struct BallPlugin;
 
-const BALL_RADIUS: f32 = 10.;
+pub const BALL_RADIUS: f32 = 10.;
 const BALL_INIT_SPEED: f32 = 3.;
 const BALL_INC_SPEED_FACTOR: f32 = 0.2;
 
@@ -21,7 +21,7 @@ impl Plugin for BallPlugin {
 #[derive(Component)]
 pub struct Ball {
     speed: f32,
-    direction: (i32, i32),
+    pub direction: (i32, i32), // TODO: Change it to enum
 }
 
 fn spawn_ball(
