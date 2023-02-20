@@ -1,5 +1,7 @@
 use bevy::{prelude::*, sprite::{MaterialMesh2dBundle}};
 
+use super::GameState;
+
 pub struct PlayerPlugin;
 
 const MOVEMENT_SPEED_BOOST: f32 = 2.;
@@ -9,10 +11,13 @@ const PLAYER_PADDLE_SIZE: Vec2 = Vec2 { x: 100., y: 20. };
 impl Plugin for PlayerPlugin {
     fn build(&self, app: &mut App) {
         app
-            .add_startup_system(spawn_player)
-            .add_system(process_player_input)
-            .add_system(update_player_movement)
-            .add_system(process_player_collision);
+        .add_startup_system(spawn_player)
+        .add_system_set(
+            SystemSet::on_update(GameState::Playing)
+                .with_system(process_player_input)
+                .with_system(update_player_movement)
+                .with_system(process_player_collision)
+        );
     }
 }
 

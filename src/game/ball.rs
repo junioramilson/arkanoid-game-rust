@@ -1,4 +1,6 @@
-use bevy::{prelude::*, sprite::{MaterialMesh2dBundle}};
+use bevy::{prelude::*, sprite::MaterialMesh2dBundle};
+
+use crate::game::GameState;
 
 pub struct BallPlugin;
 
@@ -8,30 +10,40 @@ const BALL_INC_SPEED_FACTOR: f32 = 0.2;
 
 impl Plugin for BallPlugin {
     fn build(&self, app: &mut App) {
-        app
-            .add_startup_system(spawn_ball)
-            .add_system(update_ball_movement)
-            .add_system(update_ball_direction);
+        app.add_startup_system(spawn_ball).add_system_set(
+            SystemSet::on_update(GameState::Playing)
+                .with_system(update_ball_movement)
+                .with_system(update_ball_direction),
+        );
     }
 }
 
 #[derive(Component)]
 pub struct Ball {
     speed: f32,
-    direction: (i32, i32)
+    direction: (i32, i32),
 }
 
-fn spawn_ball(mut commands: Commands, mut meshes: ResMut<Assets<Mesh>>, mut materials: ResMut<Assets<ColorMaterial>>) {
-    let ball_mesh = commands.spawn(MaterialMesh2dBundle {
-        mesh: meshes.add(shape::Circle::new(BALL_RADIUS).into()).into(),
-        material: materials.add(ColorMaterial::from(Color::PURPLE)),
-        transform: Transform::from_translation(Vec3::ZERO),
-        ..default()
-    }).id();
+fn spawn_ball(
+    mut commands: Commands,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<ColorMaterial>>,
+) {
+    let ball_mesh = commands
+        .spawn(MaterialMesh2dBundle {
+            mesh: meshes.add(shape::Circle::new(BALL_RADIUS).into()).into(),
+            material: materials.add(ColorMaterial::from(Color::PURPLE)),
+            transform: Transform::from_translation(Vec3::ZERO),
+            ..default()
+        })
+        .id();
 
     commands
         .entity(ball_mesh)
-        .insert(Ball { speed: BALL_INIT_SPEED, direction: (1, 1) })
+        .insert(Ball {
+            speed: BALL_INIT_SPEED,
+            direction: (1, 1),
+        })
         .insert(Name::new("BouncingBall"));
 }
 
