@@ -6,25 +6,34 @@ pub struct BallPlugin;
 
 pub const BALL_RADIUS: f32 = 10.;
 const BALL_INIT_SPEED: f32 = 3.;
-const BALL_INC_SPEED_FACTOR: f32 = 0.2;
 
 impl Plugin for BallPlugin {
     fn build(&self, app: &mut App) {
-        app.add_startup_system(spawn_ball).add_system_set(
-            SystemSet::on_update(GameState::Playing)
-                .with_system(update_ball_movement)
-                .with_system(update_ball_direction),
-        );
+        app.add_startup_system(setup)
+            .add_systems((
+                update_ball_movement.in_set(OnUpdate(GameState::Playing)),
+                update_ball_direction.in_set(OnUpdate(GameState::Playing)),
+                reset.in_schedule(OnExit(GameState::Playing))
+            ));
     }
 }
 
 #[derive(Component)]
 pub struct Ball {
-    speed: f32,
-    pub direction: (i32, i32), // TODO: Change it to enum
+    pub speed: f32,
+    pub direction: (i32, i32),
 }
 
-fn spawn_ball(
+fn reset(mut ball_query: Query<(&mut Ball, &mut Transform)>) {
+    let (mut ball, mut ball_transform) = ball_query.get_single_mut().unwrap();
+
+    ball.speed = BALL_INIT_SPEED;
+    ball.direction = (1, 1);
+
+    *ball_transform = Transform::from_translation(Vec3::ZERO);
+}
+
+fn setup(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
@@ -47,9 +56,9 @@ fn spawn_ball(
         .insert(Name::new("BouncingBall"));
 }
 
-fn update_ball_direction(mut ball_query: Query<(&mut Ball, &Transform)>, windows: ResMut<Windows>) {
+fn update_ball_direction(mut ball_query: Query<(&mut Ball, &Transform)>, windows: Query<&Window>,) {
     let (mut ball, transform) = ball_query.single_mut();
-    let window = windows.get_primary().unwrap();
+    let window = windows.get_single().unwrap();
 
     let limit_x = (window.width() / 2.0) - BALL_RADIUS;
     let limit_y = (window.height() / 2.0) - BALL_RADIUS;
@@ -63,7 +72,6 @@ fn update_ball_direction(mut ball_query: Query<(&mut Ball, &Transform)>, windows
     if transform.translation.y >= limit_y {
         ball.direction.1 = -1;
     } else if transform.translation.y <= -limit_y {
-        increase_ball_speed(&mut ball, BALL_INC_SPEED_FACTOR);
         ball.direction.1 = 1;
     }
 }

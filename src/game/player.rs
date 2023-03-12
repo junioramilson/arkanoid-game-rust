@@ -5,24 +5,23 @@ use bevy::{
         MaterialMesh2dBundle,
     },
 };
-
 use super::{Ball, GameState, BALL_RADIUS};
-
-pub struct PlayerPlugin;
 
 const MOVEMENT_SPEED_BOOST: f32 = 2.;
 const MOVEMENT_SPEED: f32 = 1.5;
 const PLAYER_PADDLE_SIZE: Vec2 = Vec2 { x: 100., y: 20. };
 
+pub struct PlayerPlugin;
 impl Plugin for PlayerPlugin {
     fn build(&self, app: &mut App) {
-        app.add_startup_system(spawn_player).add_system_set(
-            SystemSet::on_update(GameState::Playing)
-                .with_system(process_player_input)
-                .with_system(update_player_movement)
-                .with_system(process_player_collision)
-                .with_system(process_player_ball_collision),
-        );
+        app.add_startup_system(spawn_player)
+            .add_systems((
+                process_player_input.in_set(OnUpdate(GameState::Playing)),
+                update_player_movement.in_set(OnUpdate(GameState::Playing)),
+                process_player_collision.in_set(OnUpdate(GameState::Playing)),
+                process_player_ball_collision.in_set(OnUpdate(GameState::Playing)),
+            ))
+            .add_system(reset.in_schedule(OnExit(GameState::Playing)));
     }
 }
 
@@ -39,13 +38,32 @@ enum PlayerDirection {
     RIGHT,
 }
 
+fn reset(mut player_query: Query<(&mut Player, &mut Transform)>, mut window_query: Query<&mut Window>) {
+    let window = window_query.get_single_mut().unwrap();
+
+    let (mut player, mut player_transform) = player_query.get_single_mut().unwrap();
+
+    player.boosting = false;
+    player.can_move_left = true;
+    player.can_move_right = true;
+    player.direction = None;
+
+    let spawn_position = Vec3 {
+        x: 0.,
+        y: -(window.height() / 2.0) + 100.,
+        z: 0.,
+    };
+
+    *player_transform = Transform::from_translation(spawn_position);
+}
+
 fn spawn_player(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
-    windows: ResMut<Windows>,
+    mut window_query: Query<&mut Window>,
 ) {
-    let window = windows.get_primary().unwrap();
+    let window = window_query.get_single_mut().unwrap();
 
     let spawn_position = Vec3 {
         x: 0.,
@@ -76,7 +94,7 @@ fn spawn_player(
 }
 
 fn process_player_input(mut player_query: Query<&mut Player>, keyboard_input: Res<Input<KeyCode>>) {
-    let mut player = player_query.single_mut();
+    let mut player = player_query.get_single_mut().unwrap();
 
     player.boosting = if keyboard_input.pressed(KeyCode::LShift) {
         true
@@ -96,7 +114,7 @@ fn process_player_input(mut player_query: Query<&mut Player>, keyboard_input: Re
 }
 
 fn update_player_movement(mut player_query: Query<(&Player, &mut Transform)>) {
-    let (player, mut transform) = player_query.single_mut();
+    let (player, mut transform) = player_query.get_single_mut().unwrap();
 
     let final_speed = match player.boosting {
         true => MOVEMENT_SPEED + MOVEMENT_SPEED_BOOST,
@@ -112,28 +130,30 @@ fn update_player_movement(mut player_query: Query<(&Player, &mut Transform)>) {
 
 fn process_player_collision(
     mut player_query: Query<(&mut Player, &Transform)>,
-    windows: ResMut<Windows>,
+    window_query: Query<&Window>,
 ) {
-    let window = windows.get_primary().unwrap();
-    let (mut player, transform) = player_query.single_mut();
+    let window = window_query.get_single().unwrap();
+    let (mut player, transform) = player_query.get_single_mut().unwrap();
 
     let limit_x = (window.width() / 2.0) - (PLAYER_PADDLE_SIZE.x / 2.);
 
     if transform.translation.x + 10. > limit_x {
         player.direction = None;
         player.can_move_right = false;
+        player.can_move_left = true;
     } else if transform.translation.x - 10. <= -limit_x {
         player.direction = None;
         player.can_move_left = false;
+        player.can_move_right = true;
     }
 }
 
 fn process_player_ball_collision(
-    mut player_query: Query<(&mut Player, &Transform)>,
+    player_query: Query<(&Player, &Transform)>,
     mut ball_query: Query<(&mut Ball, &Transform)>,
 ) {
-    let (_player, player_transform) = player_query.single_mut();
-    let (mut ball, ball_transform) = ball_query.single_mut();
+    let (_player, player_transform) = player_query.get_single().unwrap();
+    let (mut ball, ball_transform) = ball_query.get_single_mut().unwrap();
 
     let collision = collide(
         player_transform.translation,
