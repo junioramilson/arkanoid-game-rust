@@ -1,5 +1,6 @@
 use bevy::{
-    prelude::*, diagnostic::{Diagnostics, FrameTimeDiagnosticsPlugin},
+    diagnostic::{Diagnostics, FrameTimeDiagnosticsPlugin},
+    prelude::*,
 };
 
 use super::{GameState, Score, UpdateScore};
@@ -23,16 +24,13 @@ pub struct GameHudPlugin;
 
 impl Plugin for GameHudPlugin {
     fn build(&self, app: &mut App) {
-        app
-        .add_plugin(FrameTimeDiagnosticsPlugin::default())
-        .add_systems((
-            setup_hud.in_schedule(OnEnter(GameState::Playing)),
-            update_score_event.in_set(OnUpdate(GameState::Playing)),
-            update_fps.in_set(OnUpdate(GameState::Playing))
-        ))
-        .add_system(
-            despawn_screen::<GameplayHud>.in_schedule(OnExit(GameState::Playing))
-        );
+        app.add_plugin(FrameTimeDiagnosticsPlugin::default())
+            .add_systems((
+                setup_hud.in_schedule(OnEnter(GameState::Playing)),
+                update_score_event.in_set(OnUpdate(GameState::Playing)),
+                update_fps.in_set(OnUpdate(GameState::Playing)),
+            ))
+            .add_system(despawn_screen::<GameplayHud>.in_schedule(OnExit(GameState::Playing)));
     }
 }
 
@@ -40,21 +38,24 @@ impl Plugin for GameHudPlugin {
 enum GameOverState {
     Show,
     #[default]
-    Hide
+    Hide,
 }
 
 pub struct GameOverPlugin;
 
 impl Plugin for GameOverPlugin {
     fn build(&self, app: &mut App) {
-        app
-            .add_state::<GameOverState>()
+        app.add_state::<GameOverState>()
             .add_system(setup_game_over.in_schedule(OnEnter(GameState::GameOver)))
             .add_system(despawn_screen::<GameOverHud>.in_schedule(OnExit(GameState::GameOver)));
     }
 }
 
-fn setup_game_over(mut commands: Commands, asset_server: Res<AssetServer>, mut query_score: Query<&Score>) {
+fn setup_game_over(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    mut query_score: Query<&Score>,
+) {
     let score = query_score.get_single_mut();
     let styled_game_over_text = |font_size: f32| TextStyle {
         font: asset_server.load("fonts/AtariST8x16SystemFont.ttf"),
@@ -64,18 +65,22 @@ fn setup_game_over(mut commands: Commands, asset_server: Res<AssetServer>, mut q
 
     commands.spawn((
         TextBundle::from_sections([
-            TextSection::new(format!("Game Over\nFinal score: {:?}", score.unwrap().0), styled_game_over_text(45.)),
+            TextSection::new(
+                format!("Game Over\nFinal score: {:?}\n\n", score.unwrap().0),
+                styled_game_over_text(45.),
+            ),
+            TextSection::new("Press ESC to restart the game", styled_game_over_text(15.)),
             TextSection::from_style(styled_game_over_text(35.)),
         ])
         .with_text_alignment(TextAlignment::Center)
         .with_style(Style {
-            position_type: PositionType::Relative,
+            position_type: PositionType::Absolute,
+            align_self: AlignSelf::Center,
             position: UiRect {
-                top: Val::Percent(50.0),
-                left: Val::Percent(50.0),
-                right: Val::Percent(50.0),
-                ..default()
+                left: Val::Percent(38.),
+                ..Default::default()
             },
+            padding: UiRect::all(Val::Px(35.)),
             ..default()
         }),
         GameOverText,
@@ -105,7 +110,7 @@ fn setup_hud(mut commands: Commands, asset_server: Res<AssetServer>) {
             ..default()
         }),
         ScoreText,
-        GameplayHud
+        GameplayHud,
     ));
 
     commands.spawn((
@@ -124,7 +129,7 @@ fn setup_hud(mut commands: Commands, asset_server: Res<AssetServer>) {
             ..default()
         }),
         FpsText,
-        GameplayHud
+        GameplayHud,
     ));
 }
 

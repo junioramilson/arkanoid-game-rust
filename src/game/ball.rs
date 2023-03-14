@@ -4,17 +4,16 @@ use crate::game::GameState;
 
 pub struct BallPlugin;
 
-pub const BALL_RADIUS: f32 = 10.;
+const BALL_RADIUS: f32 = 10.;
 const BALL_INIT_SPEED: f32 = 3.;
 
 impl Plugin for BallPlugin {
     fn build(&self, app: &mut App) {
-        app.add_startup_system(setup)
-            .add_systems((
-                update_ball_movement.in_set(OnUpdate(GameState::Playing)),
-                update_ball_direction.in_set(OnUpdate(GameState::Playing)),
-                reset.in_schedule(OnExit(GameState::Playing))
-            ));
+        app.add_startup_system(initialize).add_systems((
+            update_ball_movement.in_set(OnUpdate(GameState::Playing)),
+            update_ball_direction.in_set(OnUpdate(GameState::Playing)),
+            reset.in_schedule(OnExit(GameState::Playing)),
+        ));
     }
 }
 
@@ -22,6 +21,12 @@ impl Plugin for BallPlugin {
 pub struct Ball {
     pub speed: f32,
     pub direction: (i32, i32),
+}
+
+impl Ball {
+    pub fn get_default_radius(&self) -> f32 {
+        BALL_RADIUS
+    }
 }
 
 fn reset(mut ball_query: Query<(&mut Ball, &mut Transform)>) {
@@ -33,7 +38,7 @@ fn reset(mut ball_query: Query<(&mut Ball, &mut Transform)>) {
     *ball_transform = Transform::from_translation(Vec3::ZERO);
 }
 
-fn setup(
+fn initialize(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
@@ -56,7 +61,7 @@ fn setup(
         .insert(Name::new("BouncingBall"));
 }
 
-fn update_ball_direction(mut ball_query: Query<(&mut Ball, &Transform)>, windows: Query<&Window>,) {
+fn update_ball_direction(mut ball_query: Query<(&mut Ball, &Transform)>, windows: Query<&Window>) {
     let (mut ball, transform) = ball_query.single_mut();
     let window = windows.get_single().unwrap();
 
@@ -79,23 +84,15 @@ fn update_ball_direction(mut ball_query: Query<(&mut Ball, &Transform)>, windows
 fn update_ball_movement(mut ball_query: Query<(&Ball, &mut Transform)>) {
     let (ball, mut transform) = ball_query.single_mut();
 
-    if ball.direction.0 == 1 {
-        transform.translation.x = transform.translation.x + ball.speed;
+    match ball.direction.0 {
+        1 => transform.translation.x = transform.translation.x + ball.speed,
+        -1 => transform.translation.x = transform.translation.x - ball.speed,
+        _ => ()
     }
 
-    if ball.direction.0 == -1 {
-        transform.translation.x = transform.translation.x - ball.speed;
+    match ball.direction.1 {
+        1 => transform.translation.y = transform.translation.y + ball.speed,
+        -1 => transform.translation.y = transform.translation.y - ball.speed,
+        _ => ()
     }
-
-    if ball.direction.1 == 1 {
-        transform.translation.y = transform.translation.y + ball.speed;
-    }
-
-    if ball.direction.1 == -1 {
-        transform.translation.y = transform.translation.y - ball.speed;
-    }
-}
-
-fn increase_ball_speed(mut ball: &mut Ball, factor: f32) {
-    ball.speed += factor;
 }
