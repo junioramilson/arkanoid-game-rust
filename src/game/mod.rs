@@ -1,11 +1,11 @@
-mod game;
 mod ball;
-mod player;
+mod game;
 mod hud;
+mod player;
 mod wall;
 
-pub use hud::*;
-pub use player::*;
 pub use ball::*;
 pub use game::*;
+pub use hud::*;
+pub use player::*;
 pub use wall::*;

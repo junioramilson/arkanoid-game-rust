@@ -3,7 +3,7 @@ use bevy::{
     prelude::*,
 };
 
-use super::{GameState, Score, UpdateScore};
+use super::{GameState, Health, Score, UpdateScore};
 
 #[derive(Component)]
 struct ScoreText;
@@ -20,6 +20,9 @@ struct GameplayHud;
 #[derive(Component)]
 struct GameOverHud;
 
+#[derive(Component)]
+struct HealthText;
+
 pub struct GameHudPlugin;
 
 impl Plugin for GameHudPlugin {
@@ -29,6 +32,7 @@ impl Plugin for GameHudPlugin {
                 setup_hud.in_schedule(OnEnter(GameState::Playing)),
                 update_score_event.in_set(OnUpdate(GameState::Playing)),
                 update_fps.in_set(OnUpdate(GameState::Playing)),
+                update_health.in_set(OnUpdate(GameState::Playing)),
             ))
             .add_system(despawn_screen::<GameplayHud>.in_schedule(OnExit(GameState::Playing)));
     }
@@ -115,6 +119,25 @@ fn setup_hud(mut commands: Commands, asset_server: Res<AssetServer>) {
 
     commands.spawn((
         TextBundle::from_sections([
+            TextSection::new("Health: ", styled_text(45.)),
+            TextSection::from_style(styled_text(45.)),
+        ])
+        .with_text_alignment(TextAlignment::Center)
+        .with_style(Style {
+            position_type: PositionType::Absolute,
+            position: UiRect {
+                bottom: Val::Px(45.0),
+                right: Val::Px(15.0),
+                ..default()
+            },
+            ..default()
+        }),
+        HealthText,
+        GameplayHud,
+    ));
+
+    commands.spawn((
+        TextBundle::from_sections([
             TextSection::new("FPS: ", styled_text(20.)),
             TextSection::from_style(styled_text(20.)),
         ])
@@ -131,6 +154,13 @@ fn setup_hud(mut commands: Commands, asset_server: Res<AssetServer>) {
         FpsText,
         GameplayHud,
     ));
+}
+
+fn update_health(mut query: Query<&mut Text, With<HealthText>>, mut query_health: Query<&Health>) {
+    let health = query_health.single_mut();
+    for mut text in &mut query {
+        text.sections[1].value = format!("{}", health.0);
+    }
 }
 
 fn update_score_event(

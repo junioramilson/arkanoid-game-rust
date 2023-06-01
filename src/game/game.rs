@@ -1,9 +1,14 @@
+use std::path::Prefix;
+
 use super::{
     Ball, BallPlugin, Brick, GameHudPlugin, GameOverPlugin, Player, PlayerPlugin, WallPlugin,
 };
 use bevy::{
     prelude::*,
-    sprite::collide_aabb::{collide, Collision},
+    sprite::{
+        collide_aabb::{collide, Collision},
+        MaterialMesh2dBundle,
+    },
 };
 
 #[derive(Clone, Eq, PartialEq, Debug, Hash, States, Default)]
@@ -17,8 +22,20 @@ pub enum GameState {
 #[derive(Default)]
 pub struct UpdateScore;
 
+#[derive(Default)]
+pub struct UpdateHealth;
+
 #[derive(Component, Default)]
 pub struct Score(pub i32);
+
+#[derive(Component, Default)]
+pub struct Health(pub i32);
+
+#[derive(Component)]
+pub struct Ground {
+    pub entity: Entity,
+    pub size: Vec2,
+}
 
 pub struct GamePlugin;
 
@@ -26,6 +43,7 @@ impl Plugin for GamePlugin {
     fn build(&self, app: &mut App) {
         app.add_state::<GameState>()
             .add_event::<UpdateScore>()
+            .add_event::<UpdateHealth>()
             .add_startup_system(initialize)
             .add_plugin(BallPlugin)
             .add_plugin(PlayerPlugin)
@@ -35,7 +53,8 @@ impl Plugin for GamePlugin {
             .add_system(process_global_input)
             .add_system(game_over.in_set(OnUpdate(GameState::Playing)))
             .add_system(ball_hit_bottom.in_set(OnUpdate(GameState::Playing)))
-            .add_system(reset.in_schedule(OnExit(GameState::Playing)))
+            .add_system(reset_score.in_schedule(OnEnter(GameState::Playing)))
+            .add_system(reset_health.in_schedule(OnExit(GameState::Playing)))
             .add_system(ball_block_collision.in_set(OnUpdate(GameState::Playing)))
             .add_system(player_ball_collision.in_set(OnUpdate(GameState::Playing)));
     }
@@ -44,7 +63,46 @@ impl Plugin for GamePlugin {
 const BALL_INC_SPEED_FACTOR: f32 = 0.2;
 const SCORE_POINT_FACTOR: i32 = 10;
 
-fn reset(mut score_query: Query<&mut Score>, mut update_score_event: EventWriter<UpdateScore>) {
+fn initialize(
+    mut commands: Commands,
+    mut update_score_event: EventWriter<UpdateScore>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<ColorMaterial>>,
+    window_query: Query<&Window>,
+) {
+    commands.spawn(Camera2dBundle::default());
+    commands.spawn(Score(0));
+    commands.spawn(Health(100));
+
+    let window = window_query.get_single().unwrap();
+    let window_width = window.width();
+
+    let ground_rect_size = Vec2 {
+        x: window_width,
+        y: 25.,
+    };
+
+    let ground_rect = commands
+        .spawn(MaterialMesh2dBundle {
+            mesh: meshes.add(shape::Quad::new(ground_rect_size).into()).into(),
+            material: materials.add(ColorMaterial::from(Color::DARK_GRAY)),
+            transform: Transform::from_translation(Vec3::new(0., -350., 0.)),
+            ..Default::default()
+        })
+        .id();
+
+    commands.entity(ground_rect).insert(Ground {
+        entity: ground_rect,
+        size: ground_rect_size,
+    });
+
+    update_score_event.send_default();
+}
+
+fn reset_score(
+    mut score_query: Query<&mut Score>,
+    mut update_score_event: EventWriter<UpdateScore>,
+) {
     let mut score = score_query.get_single_mut().unwrap();
 
     score.0 = 0;
@@ -52,11 +110,15 @@ fn reset(mut score_query: Query<&mut Score>, mut update_score_event: EventWriter
     update_score_event.send_default();
 }
 
-fn initialize(mut commands: Commands, mut update_score_event: EventWriter<UpdateScore>) {
-    commands.spawn(Camera2dBundle::default());
-    commands.spawn(Score(0));
+fn reset_health(
+    mut health_query: Query<&mut Health>,
+    mut update_health_event: EventWriter<UpdateHealth>,
+) {
+    let mut health = health_query.get_single_mut().unwrap();
 
-    update_score_event.send_default();
+    health.0 = 100;
+
+    update_health_event.send_default();
 }
 
 fn process_global_input(
@@ -75,35 +137,60 @@ fn process_global_input(
     }
 }
 
-fn game_over(
-    mut ball_query: Query<&Ball>,
-    mut state: ResMut<NextState<GameState>>,
-    score_query: Query<&Score>,
-) {
-    let ball = ball_query.single_mut();
-    let score = score_query.get_single().unwrap();
+fn game_over(mut state: ResMut<NextState<GameState>>, health_query: Query<&Health>) {
+    let health = health_query.get_single().unwrap();
 
-    if ball.speed > 10. || score.0 < 0 {
+    if health.0 <= 0 {
         let _ = state.set(GameState::GameOver);
     }
 }
 
 fn ball_hit_bottom(
     mut ball_query: Query<(&mut Ball, &Transform)>,
-    mut score_query: Query<&mut Score>,
-    mut update_score_event: EventWriter<UpdateScore>,
-    window_query: Query<&Window>,
+    mut ground_query: Query<(&Ground, &Transform)>,
+    mut health_query: Query<&mut Health>,
+    mut update_health_event: EventWriter<UpdateHealth>,
 ) {
     let (mut ball, ball_transform) = ball_query.get_single_mut().unwrap();
-    let window = window_query.get_single().unwrap();
-    let limit_y = (window.height() / 2.0) - ball.get_default_radius() - 5.;
-    let mut score = score_query.get_single_mut().unwrap();
+    let (ground, ground_transform) = ground_query.get_single_mut().unwrap();
 
-    if ball_transform.translation.y <= -limit_y {
-        update_score_event.send_default();
-        score.0 -= SCORE_POINT_FACTOR;
+    let collision = collide(
+        ball_transform.translation,
+        Vec2 {
+            x: ball.get_default_radius(),
+            y: ball.get_default_radius(),
+        },
+        ground_transform.translation,
+        ground.size,
+    );
 
-        ball.speed += BALL_INC_SPEED_FACTOR;
+    let mut health = health_query.get_single_mut().unwrap();
+
+    if collision.is_some() {
+        match collision.unwrap() {
+            Collision::Left => {
+                println!("Left");
+            }
+            Collision::Right => {
+                println!("Right");
+            }
+            Collision::Top => {
+                update_health_event.send_default();
+
+                health.0 -= 10;
+
+                println!("Health: {}", health.0);
+
+                ball.speed += BALL_INC_SPEED_FACTOR;
+                ball.direction.1 = 1;
+            }
+            Collision::Bottom => {
+                println!("Bottom");
+            }
+            Collision::Inside => {
+                println!("Inside");
+            }
+        }
     }
 }
 
